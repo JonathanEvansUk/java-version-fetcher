@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx"
+        crossorigin="anonymous">
+</head>
+<body>
+<div class="container-fluid">
+  <table class="table" id="repositoryTable">
+    <thead>
+    <tr>
+      <th>Repository</th>
+      <th>Default Branch</th>
+      <th>POMs</th>
+      <th>java.version</th>
+      <th>Dockerfile</th>
+      <th>Jenkinsfile</th>
+    </tr>
+    </thead>
+  </table>
+</div>
+
+
+<script>
+  const POM_FILES = "pomFiles";
+  const JAVA_VERSION_FILE = "javaVersionFile";
+  const DOCKERFILE = "dockerfile";
+  const JENKINSFILE = "jenkinsfile";
+
+  const EMPTY_CELLS_TO_INITIALISE = [
+    POM_FILES,
+    JAVA_VERSION_FILE,
+    DOCKERFILE,
+    JENKINSFILE
+  ];
+
+  async function getRepositories() {
+    const repositories = await fetch("http://localhost:8080/repositories")
+      .then(result => result.json());
+
+    return repositories;
+  }
+
+  const createEmptyCell = (id) => {
+    const cell = document.createElement("td");
+    cell.setAttribute("id", id);
+    return cell;
+  };
+
+  const displayRepositories = (repositories) => {
+    const table = document.getElementById("repositoryTable");
+    const tbody = document.createElement("tbody");
+
+    repositories.forEach(repository => {
+      const row = document.createElement("tr");
+      row.setAttribute("id", repository.name);
+      const nameCell = document.createElement("td");
+
+      const linkToRepository = document.createElement("a");
+      const linkText = document.createTextNode(repository.name);
+      linkToRepository.append(linkText);
+      linkToRepository.href = repository.url;
+
+      nameCell.appendChild(linkToRepository);
+      row.appendChild(nameCell);
+
+      const defaultBranchCell = document.createElement("td");
+      const defaultBranchText = document.createTextNode(repository.defaultBranch);
+      defaultBranchCell.append(defaultBranchText);
+      row.appendChild(defaultBranchCell);
+
+      EMPTY_CELLS_TO_INITIALISE.map(cellName => createEmptyCell(repository.name + "_" + cellName))
+        .forEach(cell => row.appendChild(cell));
+
+      tbody.appendChild(row);
+    });
+
+    table.appendChild(tbody);
+  };
+
+  const createPomFilesLists = (pomFileVersionsByPomName) => {
+
+    const fileLists = Object.entries(pomFileVersionsByPomName).map(([file, versions]) => {
+      const fileCard = document.createElement("div");
+      fileCard.classList.add("card");
+
+      const cardHeader = document.createElement("div");
+      cardHeader.classList.add("card-header");
+      fileCard.appendChild(cardHeader);
+
+      const fileName = document.createTextNode(file);
+      cardHeader.appendChild(fileName);
+
+      const cardBody = document.createElement("div");
+      cardBody.classList.add("card-body");
+
+      fileCard.append(cardBody);
+
+      const fileList = document.createElement("ul");
+
+      console.log(versions);
+
+      const tableRows = Object.entries(versions).map(([description, value]) => {
+        return `
+          <tr>
+            <td>${description}</td>
+            <td>${value}</td>
+          </tr>
+          `;
+      }).join("");
+
+      console.log(tableRows);
+
+      const tableHtml = `
+        <table class="table">
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+        `;
+
+      cardBody.innerHTML = tableHtml;
+
+<!--      Object.entries(versions).map(([description, value]) => {-->
+<!--        const versionListItem = document.createElement("li");-->
+<!--        versionListItem.innerText = description + ", " + value;-->
+<!--        fileList.appendChild(versionListItem);-->
+<!--      });-->
+
+      cardBody.appendChild(fileList);
+
+      return fileCard;
+    });
+
+    return fileLists;
+  };
+
+  const createJavaVersionFileSummary = (javaVersionFileResult) => {
+    console.log(javaVersionFileResult);
+    if (javaVersionFileResult.status === "NOT_FOUND") {
+      return "No file found";
+    }
+
+    if (javaVersionFileResult.status === "EMPTY_FILE") {
+      return "File is empty";
+    }
+
+    if (javaVersionFileResult.status === "FOUND") {
+      return javaVersionFileResult.version;
+    }
+
+    return "Unable to determine result";
+  };
+
+  const displayJavaVersions = (repository, javaVersions) => {
+    console.log(javaVersions);
+    const pomFilesLists = createPomFilesLists(javaVersions.pomFileVersionsByPomName);
+    document.getElementById(repository.name + "_" + POM_FILES).append(...pomFilesLists);
+
+    const javaVersionFileSummary = createJavaVersionFileSummary(javaVersions.javaVersionFileResult);
+    document.getElementById(repository.name + "_" + JAVA_VERSION_FILE).append(javaVersionFileSummary);
+  };
+
+  (async () => {
+    const repositories = await getRepositories();
+    console.log(repositories);
+    displayRepositories(repositories);
+
+    const fetchJavaVersions = repositories
+      .map(repository => fetch("http://localhost:8080/repositories/" + repository.name)
+        .then(res => res.json())
+        .then(javaVersions => displayJavaVersions(repository, javaVersions))
+      );
+
+  })();
+
+
+
+
+</script>
+
+</body>
+</html>
